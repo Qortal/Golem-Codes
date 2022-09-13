@@ -8,6 +8,7 @@ There are individual readme files in multiple directories, including the 'kernel
 
 -_-
 
+To do: Needs mempow optimizations
 
 
 DONATION ADDRESSES to SUPPORT THE DEVELOPMENT
