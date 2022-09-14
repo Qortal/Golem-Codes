@@ -33,8 +33,6 @@
 #define CLK_RECALC_NEW_RATES	BIT(9) /* recalc rates after notifications */
 #define CLK_SET_RATE_UNGATE	BIT(10) /* clock needs to run to set rate */
 #define CLK_KEEP_REQ_RATE	BIT(12) /* keep reqrate on parent rate change */
-/* parents need enable during gate/ungate, set rate and re-parent */
-#define CLK_OPS_PARENT_ENABLE	BIT(13)
 
 struct clk;
 struct clk_hw;
@@ -343,7 +341,6 @@ struct clk_div_table {
  * @reg:	register containing the divider
  * @shift:	shift to the divider bit field
  * @width:	width of the divider bit field
- * @max_prate:	the maximum frequency of the parent clock
  * @table:	array of value/divider pairs, last entry should have div = 0
  * @lock:	register lock
  *
@@ -380,7 +377,6 @@ struct clk_divider {
 	u8		shift;
 	u8		width;
 	u8		flags;
-	unsigned long	max_prate;
 	const struct clk_div_table	*table;
 	spinlock_t	*lock;
 };

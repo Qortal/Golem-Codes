@@ -68,7 +68,6 @@ struct rfkill_rk_data {
 	struct rfkill				*rfkill_dev;
     struct wake_lock            bt_irq_wl;
     struct delayed_work         bt_sleep_delay_work;
-    int irq_req;
 };
 
 static struct rfkill_rk_data *g_rfkill = NULL;
@@ -142,24 +141,15 @@ static int rfkill_rk_setup_gpio(struct platform_device *pdev, struct rfkill_rk_g
     return 0;
 }
 
-static int rfkill_rk_setup_wake_irq(struct rfkill_rk_data* rfkill, int flag)
+static int rfkill_rk_setup_wake_irq(struct rfkill_rk_data* rfkill)
 {
     int ret=0;
     struct rfkill_rk_irq* irq = &(rfkill->pdata->wake_host_irq);
-
-    if (!flag) {
-        rfkill->irq_req = 0;
-        ret = rfkill_rk_setup_gpio(rfkill->pdev, &irq->gpio,
-                                   rfkill->pdata->name, "wake_host");
-        if (ret)
-            goto fail1;
-    }
-
-    if (gpio_is_valid(irq->gpio.io)) {
-        if (rfkill->irq_req) {
-            rfkill->irq_req = 0;
-            free_irq(irq->irq, rfkill);
-        }
+    
+    ret = rfkill_rk_setup_gpio(rfkill->pdev, &irq->gpio, rfkill->pdata->name, "wake_host");
+    if (ret) goto fail1;
+    if (gpio_is_valid(irq->gpio.io))
+    {
         //ret = gpio_pull_updown(irq->gpio.io, (irq->gpio.enable==GPIO_ACTIVE_LOW)?GPIOPullUp:GPIOPullDown);
         //if (ret) goto fail2;
         LOG("Request irq for bt wakeup host\n");
@@ -171,7 +161,6 @@ static int rfkill_rk_setup_wake_irq(struct rfkill_rk_data* rfkill, int flag)
                     irq->name,
                     rfkill);
         if (ret) goto fail2;
-        rfkill->irq_req = 1;
         LOG("** disable irq\n");
         disable_irq(irq->irq);
         ret = enable_irq_wake(irq->irq);
@@ -181,7 +170,7 @@ static int rfkill_rk_setup_wake_irq(struct rfkill_rk_data* rfkill, int flag)
     return ret;
 
 fail3:
-    free_irq(irq->irq, rfkill);
+    free_irq(irq->gpio.io, rfkill);
 fail2:
     gpio_free(irq->gpio.io);
 fail1:
@@ -274,8 +263,8 @@ int rfkill_get_bt_power_state(int *power, bool *toggle)
 
 static int rfkill_rk_set_power(void *data, bool blocked)
 {
-    struct rfkill_rk_data *rfkill = data;
-    struct rfkill_rk_gpio *wake_host = &rfkill->pdata->wake_host_irq.gpio;
+	struct rfkill_rk_data *rfkill = data;
+	struct rfkill_rk_gpio *wake_host = &rfkill->pdata->wake_host_irq.gpio;
     struct rfkill_rk_gpio *poweron = &rfkill->pdata->poweron_gpio;
     struct rfkill_rk_gpio *reset = &rfkill->pdata->reset_gpio;
     struct rfkill_rk_gpio* rts = &rfkill->pdata->rts_gpio;
@@ -301,30 +290,26 @@ static int rfkill_rk_set_power(void *data, bool blocked)
 	if (false == blocked) { 
 
         rfkill_rk_sleep_bt(BT_WAKEUP); // ensure bt is wakeup
-
 	if (gpio_is_valid(wake_host->io)) {
-		LOG("%s: set bt wake_host high!\n", __func__);
+		LOG("%s: set bt wake_host pin output high!\n", __func__);
 		gpio_direction_output(wake_host->io, 1);
 		msleep(20);
 	}
 
-	if (gpio_is_valid(poweron->io)) {
-		if (gpio_get_value(poweron->io) == !poweron->enable) {
-			gpio_direction_output(poweron->io, !poweron->enable);
-			msleep(20);
-			gpio_direction_output(poweron->io, poweron->enable);
-			msleep(20);
-			if (gpio_is_valid(wake_host->io))
-				gpio_direction_input(wake_host->io);
-		}
+	if (gpio_is_valid(poweron->io) && gpio_is_valid(wake_host->io))
+        {
+		gpio_direction_output(poweron->io, !poweron->enable);
+		msleep(20);
+		gpio_direction_output(poweron->io, poweron->enable);
+		msleep(20);
+		gpio_direction_input(wake_host->io);
+		LOG("%s: set bt wake_host pin input!\n", __func__);
         }
-
-	if (gpio_is_valid(reset->io)) {
-		if (gpio_get_value(reset->io) == !reset->enable) {
+		if (gpio_is_valid(reset->io))
+        {
 			gpio_direction_output(reset->io, !reset->enable);
-			msleep(20);
+            msleep(20);
 			gpio_direction_output(reset->io, reset->enable);
-		}
         }
 
         if (pinctrl != NULL && gpio_is_valid(rts->io))
@@ -340,25 +325,21 @@ static int rfkill_rk_set_power(void *data, bool blocked)
 
         bt_power_state = 1;
     	LOG("bt turn on power\n");
-	rfkill_rk_setup_wake_irq(rfkill, 1);
 	} else {
-		if (gpio_is_valid(poweron->io)) {
-			if (gpio_get_value(poweron->io) == poweron->enable) {
-				gpio_direction_output(poweron->io,
-						      !poweron->enable);
-				msleep(20);
-			}
-		}
+            if (gpio_is_valid(poweron->io))
+            {      
+                gpio_direction_output(poweron->io, !poweron->enable);
+                msleep(20);
+            }
 
-		bt_power_state = 0;
-		LOG("bt shut off power\n");
-		if (gpio_is_valid(reset->io)) {
-			if (gpio_get_value(reset->io) == reset->enable) {
-				gpio_direction_output(reset->io,
-						      !reset->enable);
-				msleep(20);
-			}
-		}
+            bt_power_state = 0;
+    		LOG("bt shut off power\n");
+		if (gpio_is_valid(reset->io))
+        {      
+			gpio_direction_output(reset->io, !reset->enable);/* bt reset active*/
+            msleep(20);
+        }
+
 	}
 
 	return 0;
@@ -651,8 +632,8 @@ static int rfkill_rk_probe(struct platform_device *pdev)
 
     wake_lock_init(&(rfkill->bt_irq_wl), WAKE_LOCK_SUSPEND, "rfkill_rk_irq_wl");
 
-    ret = rfkill_rk_setup_wake_irq(rfkill, 0);
-    if (ret) goto fail_setup_wake_irq;
+    ret = rfkill_rk_setup_wake_irq(rfkill);
+    if (ret) goto fail_gpio;
 
     DBG("setup rfkill\n");
 	rfkill->rfkill_dev = rfkill_alloc(pdata->name, &pdev->dev, pdata->type,
@@ -690,8 +671,6 @@ fail_alloc:
 
 	remove_proc_entry("btwrite", sleep_dir);
 	remove_proc_entry("lpm", sleep_dir);
-fail_setup_wake_irq:
-	wake_lock_destroy(&rfkill->bt_irq_wl);
 fail_gpio:
 
         g_rfkill = NULL;
@@ -726,14 +705,15 @@ static int rfkill_rk_remove(struct platform_device *pdev)
         gpio_free(rfkill->pdata->wake_gpio.io);
 #endif
     
-    if (gpio_is_valid(rfkill->pdata->reset_gpio.io))
+    if (gpio_is_valid(rfkill->pdata->reset_gpio.io)) {
         gpio_free(rfkill->pdata->reset_gpio.io);
+    }
     
-    if (gpio_is_valid(rfkill->pdata->poweron_gpio.io))
+    if (gpio_is_valid(rfkill->pdata->poweron_gpio.io)) {
 		gpio_free(rfkill->pdata->poweron_gpio.io);
+    }
 	clk_disable_unprepare(rfkill->pdata->ext_clk);
-	wake_lock_destroy(&rfkill->bt_irq_wl);
-	g_rfkill = NULL;
+    g_rfkill = NULL;
 
 	return 0;
 }

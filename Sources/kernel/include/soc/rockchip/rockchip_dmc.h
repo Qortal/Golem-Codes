@@ -22,8 +22,7 @@ int rockchip_dmcfreq_wait_complete(void);
 int rockchip_dmcfreq_vop_bandwidth_request(struct devfreq *devfreq,
 					   unsigned int bw_mbyte);
 void rockchip_dmcfreq_vop_bandwidth_update(struct devfreq *devfreq,
-					   unsigned int bw_mbyte,
-					   unsigned int plane_num);
+					   unsigned int bw_mbyte);
 
 #else
 static inline void rockchip_dmcfreq_lock(void)
@@ -48,8 +47,7 @@ rockchip_dmcfreq_vop_bandwidth_request(struct devfreq *devfreq,
 
 static inline void
 rockchip_dmcfreq_vop_bandwidth_update(struct devfreq *devfreq,
-				      unsigned int bw_mbyte,
-				      unsigned int plane_num)
+				      unsigned int bw_mbyte)
 {
 }
 #endif

@@ -210,9 +210,7 @@ static int rockchip_pdm_hw_params(struct snd_pcm_substream *substream,
 	regmap_update_bits(pdm->regmap, PDM_HPF_CTRL,
 			   PDM_HPF_LE | PDM_HPF_RE, PDM_HPF_LE | PDM_HPF_RE);
 	regmap_update_bits(pdm->regmap, PDM_CLK_CTRL, PDM_CLK_EN, PDM_CLK_EN);
-	if (pdm->version != RK_PDM_RK3229)
-		regmap_update_bits(pdm->regmap, PDM_CTRL0,
-				   PDM_MODE_MSK, PDM_MODE_LJ);
+	regmap_update_bits(pdm->regmap, PDM_CTRL0, PDM_MODE_MSK, PDM_MODE_LJ);
 
 	val = 0;
 	switch (params_format(params)) {
@@ -257,9 +255,8 @@ static int rockchip_pdm_hw_params(struct snd_pcm_substream *substream,
 	regmap_update_bits(pdm->regmap, PDM_CTRL0,
 			   PDM_PATH_MSK | PDM_VDW_MSK,
 			   val);
-	/* all channels share the single FIFO */
 	regmap_update_bits(pdm->regmap, PDM_DMA_CTRL, PDM_DMA_RDL_MSK,
-			   PDM_DMA_RDL(8 * params_channels(params)));
+			   PDM_DMA_RDL(16));
 
 	return 0;
 }
@@ -417,7 +414,6 @@ static bool rockchip_pdm_rd_reg(struct device *dev, unsigned int reg)
 	case PDM_INT_CLR:
 	case PDM_INT_ST:
 	case PDM_DATA_VALID:
-	case PDM_RXFIFO_DATA:
 	case PDM_VERSION:
 		return true;
 	default:
@@ -432,17 +428,6 @@ static bool rockchip_pdm_volatile_reg(struct device *dev, unsigned int reg)
 	case PDM_FIFO_CTRL:
 	case PDM_INT_CLR:
 	case PDM_INT_ST:
-	case PDM_RXFIFO_DATA:
-		return true;
-	default:
-		return false;
-	}
-}
-
-static bool rockchip_pdm_precious_reg(struct device *dev, unsigned int reg)
-{
-	switch (reg) {
-	case PDM_RXFIFO_DATA:
 		return true;
 	default:
 		return false;
@@ -465,16 +450,12 @@ static const struct regmap_config rockchip_pdm_regmap_config = {
 	.writeable_reg = rockchip_pdm_wr_reg,
 	.readable_reg = rockchip_pdm_rd_reg,
 	.volatile_reg = rockchip_pdm_volatile_reg,
-	.precious_reg = rockchip_pdm_precious_reg,
 	.cache_type = REGCACHE_FLAT,
 };
 
 static const struct of_device_id rockchip_pdm_match[] = {
-	{ .compatible = "rockchip,pdm",
-	  .data = (void *)RK_PDM_RK3229 },
+	{ .compatible = "rockchip,pdm", },
 	{ .compatible = "rockchip,px30-pdm",
-	  .data = (void *)RK_PDM_RK3308 },
-	{ .compatible = "rockchip,rk1808-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
 	{ .compatible = "rockchip,rk3308-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
