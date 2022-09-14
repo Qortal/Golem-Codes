@@ -1,4 +1,4 @@
-# Golem
+# Qortal Qolem Codes Linux with mempow hard crunch
 
 Welcome to the official repo of the new Golem Codes smart system by Scare Crowe. The initial repo was released under crowetic's git, and subsequently moved to the official Qortal git location.
 
